@@ -55,10 +55,10 @@ PID_handler = None
 PID_error_locked = True
 RST_handler = None
 
-target_pos = [0.0, 0.0, 0.0, 0.0] # x, y, z, yaw
-target_pos_norm = [0.0, 0.0, 0.0, 0.0] # x, y, z, yaw
-base_pos = [0.0, 0.0, 0.0, 0.0] # x, y, z, yaw
-current_pos = [0.0, 0.0, 0.0, 0.0] # x, y, z, yaw
+target_pos = [0.0, 0.0, 0.0, 0.0]  # x, y, z, yaw
+target_pos_norm = [0.0, 0.0, 0.0, 0.0]  # x, y, z, yaw
+base_pos = [0.0, 0.0, 0.0, 0.0]  # x, y, z, yaw
+current_pos = [0.0, 0.0, 0.0, 0.0]  # x, y, z, yaw
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
@@ -96,7 +96,7 @@ def odom_callback(data):
 
 
 def dbg_callback(data):
-	rospy.loginfo('New task has been received!')
+	rospy.loginfo('New task has been received [Y]!')
 
 	rate_z_test = rospy.Rate(90)
 	empty_msg = Empty()
@@ -112,7 +112,7 @@ def dbg_callback(data):
 	global RST_handler
 	RST_handler = ReferenceSystemTransformer()
 
-	rospy.loginfo('Bebop Take Off #1')
+	rospy.loginfo('Bebop Take Off [START]')
 	action_takeoff.publish(empty_msg)
 	global drones_state
 	while not(drones_state == DronesState.HOVERING.value):
@@ -131,32 +131,43 @@ def dbg_callback(data):
 	target_pos[3] = 0
 
 	result_file_h = open(os.path.join(__location__, "results.csv"), "w")
+	logs_file_h = open(os.path.join(__location__, "logs.txt"), "w")
 
-	for kp in range(20, 101, 4):
-		for ki in range(1, 42, 2):
-			for kd in range(20, 101, 4):
+	# ==================== DLA OSI X ====================
+	for kp in range(40, 86, 5):
+		for ki in range(1, 29, 3):
+			for kd in range(30, 76, 5):
 				n_kp = ((kp * 1.0) / 100)
 				n_ki = ((ki * 1.0) / 1000)
 				n_kd = kd
 
 				PID_error_locked = True
-
 				global PID_handler
-				PID_handler = UavPID([1, 0, 0, 0], [0.0001, 0, 0, 0], [60, 0, 0, 0])  # !
-
+				PID_handler = UavPID([n_kp, 0, 0, 0], [n_ki, 0, 0, 0], [n_kd, 0, 0, 0])
 				PID_error_locked = False
+
+				diff_data = []
+				J = 0.0
+				min_PID_result = 0.005  # warunek w while
+
+				# ==================== OD 0 DO 3 ====================
+				max_cur_pos1 = 0.0
+				max_diff = []
+				total_diff = 0.0
 
 				target_pos[0] = 3.0  # X
 				PID_handler.reset_errors_list()
 				rospy.loginfo('Bebop Move [#X] (FORWARD)')
-
+				logs_file_h.write('Bebop Move [#X] (FORWARD)' + '\n')
 				PID_result = 1.0
 				loop_cond = 0
-				diff_data = []
-				J = 0.0
-				while (abs(PID_result) > 0.05) or (loop_cond < 180):
+				while (abs(PID_result) > min_PID_result) or (loop_cond < 180):
 					PID_result = PID_handler.calculate('X')
 					diff_data.append(abs(target_pos[0] - current_pos[0]))
+					if max_cur_pos1 < current_pos[0]:
+						max_cur_pos1 = current_pos[0]
+
+					# logs_file_h.write(str(current_pos[0]) + '\n')
 					twist_msg.linear.x = PID_result
 
 					action_move.publish(twist_msg)
@@ -164,63 +175,112 @@ def dbg_callback(data):
 					rate_z_test.sleep()
 					loop_cond += 1
 
+				# rospy.loginfo('CRP1 = ' + str(max_cur_pos1))
+				max_diff.append(abs(target_pos[0] - max_cur_pos1))
+				rospy.loginfo('TGP = ' + str(target_pos[0]) + '\t' + 'CRP1 = ' + str(max_cur_pos1) + '\t' + \
+							  'DIF = ' + str(max_diff[0]) + '\n')
+				logs_file_h.write('CRP1 = ' + str(max_cur_pos1) + '\t' + 'DIF = ' + str(max_diff[0]) + '\n')
+				# ==================== OD 3 DO 2 ====================
+				min_cur_pos1 = 100.0
 				target_pos[0] = 2.0  # X
 				PID_handler.reset_errors_list()
 				rospy.loginfo('Bebop Move [#X] (BACKWARD)')
-
+				logs_file_h.write('Bebop Move [#X] (BACKWARD)' + '\n')
 				PID_result = 1.0
 				loop_cond = 0
-				while (abs(PID_result) > 0.05) or (loop_cond < 180):
+				while (abs(PID_result) > min_PID_result) or (loop_cond < 180):
 					PID_result = PID_handler.calculate('X')
 					diff_data.append(abs(target_pos[0] - current_pos[0]))
+					if min_cur_pos1 > current_pos[0]:
+						min_cur_pos1 = current_pos[0]
+
+					# logs_file_h.write(str(current_pos[0]) + '\n')
 					twist_msg.linear.x = PID_result
 
 					action_move.publish(twist_msg)
 					rate_z_test.sleep()
 					loop_cond += 1
 
+				# rospy.loginfo('CRP2 = ' + str(min_cur_pos1))
+				max_diff.append(abs(target_pos[0] - min_cur_pos1))
+				rospy.loginfo('TGP = ' + str(target_pos[0]) + '\t' + 'CRP2 = ' + str(min_cur_pos1) + '\t' + \
+							  'DIF = ' + str(max_diff[1]) + '\n')
+				logs_file_h.write('CRP2 = ' + str(min_cur_pos1) + '\t' + 'DIF = ' + str(max_diff[1]) + '\n')
+
+				# ==================== OD 2 DO 3 ====================
+				max_cur_pos2 = 0.0
 				target_pos[0] = 3.0  # X
 				PID_handler.reset_errors_list()
 				rospy.loginfo('Bebop Move [#X] (FORWARD)')
-
+				logs_file_h.write('Bebop Move [#X] (FORWARD)' + '\n')
 				PID_result = 1.0
 				loop_cond = 0
-				while (abs(PID_result) > 0.05) or (loop_cond < 180):
+				while (abs(PID_result) > min_PID_result) or (loop_cond < 180):
 					PID_result = PID_handler.calculate('X')
 					diff_data.append(abs(target_pos[0] - current_pos[0]))
+					if max_cur_pos2 < current_pos[0]:
+						max_cur_pos2 = current_pos[0]
+
+					# logs_file_h.write(str(current_pos[0]) + '\n')
 					twist_msg.linear.x = PID_result
 
 					action_move.publish(twist_msg)
 					rate_z_test.sleep()
 					loop_cond += 1
 
+				# rospy.loginfo('CRP3 = ' + str(max_cur_pos2))
+				max_diff.append(abs(target_pos[0] - max_cur_pos2))
+				rospy.loginfo('TGP = ' + str(target_pos[0]) + '\t' + 'CRP3 = ' + str(max_cur_pos2) + '\t' + \
+				 			  'DIF = ' + str(max_diff[2]) + '\n')
+				logs_file_h.write('CRP3 = ' + str(max_cur_pos2) + '\t' + 'DIF = ' + str(max_diff[2]) + '\n')
+
+				# ==================== OD 3 DO 0 ====================
+				min_cur_pos2 = 100.0
 				target_pos[0] = 0.0  # X
 				PID_handler.reset_errors_list()
 				rospy.loginfo('Bebop Move [#X] (BACKWARD)')
-
+				logs_file_h.write('Bebop Move [#X] (BACKWARD)' + '\n')
 				PID_result = 1.0
 				loop_cond = 0
-				while (abs(PID_result) > 0.05) or (loop_cond < 180):
+				while (abs(PID_result) > min_PID_result) or (loop_cond < 180):
 					PID_result = PID_handler.calculate('X')
 					diff_data.append(abs(target_pos[0] - current_pos[0]))
+					if min_cur_pos2 > current_pos[0]:
+						min_cur_pos2 = current_pos[0]
+
+					# logs_file_h.write(str(current_pos[0]) + '\n')
 					twist_msg.linear.x = PID_result
 
 					action_move.publish(twist_msg)
 					rate_z_test.sleep()
 					loop_cond += 1
+
+				# rospy.loginfo('CRP4 = ' + str(min_cur_pos2))
+				max_diff.append(abs(target_pos[0] - min_cur_pos2))
+				rospy.loginfo('TGP = ' + str(target_pos[0]) + '\t' + 'CRP4 = ' + str(min_cur_pos2) + '\t' + \
+				 			  'DIF = ' + str(max_diff[3]) + '\n')
+				logs_file_h.write('CRP4 = ' + str(min_cur_pos2) + '\t' + 'DIF = ' + str(max_diff[3]) + '\n')
 
 				for d in diff_data:
 					J += d
 
-				rospy.loginfo('Kp = ' + str(n_kp) + '\t' + 'Ki = ' + str(n_ki) + '\t' + 'Kd = ' + str(n_kd) + '\t' + 'J = ' + str(J) + '\n')
-				result_file_h.write(str(n_kp) + '\t' + str(n_ki) + '\t' + str(n_kd) + '\t' + str(J) + '\n')
+				for diff in max_diff:
+					total_diff += diff
+
+				rospy.loginfo('Kp = ' + str(n_kp) + '\t' + 'Ki = ' + str(n_ki) + '\t' + 'Kd = ' + str(n_kd) + '\n' + \
+							  'J = ' + str(J) + '\t' + "TDIF = " + str(total_diff) + '\n')
+				logs_file_h.write('Kp = ' + str(n_kp) + '\t' + 'Ki = ' + str(n_ki) + '\t' + 'Kd = ' + str(n_kd) + \
+								  '\n' + 'J = ' + str(J) + '\t' + 'TDIF = ' + str(total_diff) + '\n')
+				result_file_h.write(str(n_kp) + '\t' + str(n_ki) + '\t' + str(n_kd) + '\t' + str(J) + '\t' + \
+									str(total_diff) + '\n')
 				result_file_h.flush()
+				logs_file_h.flush()
 
 	result_file_h.close()
-
+	logs_file_h.close()
 	rospy.sleep(5)
 
-	rospy.loginfo('Bebop Land #1')
+	rospy.loginfo('Bebop Land [STOP]')
 	action_land.publish(empty_msg)
 
 	while not(drones_state == DronesState.LANDED.value):
@@ -266,6 +326,7 @@ def performance_callback(data):
 
 	result_file_h = open(os.path.join(__location__, "results_test.csv"), "w")
 
+	# ==================== DLA OSI Z ====================
 	for kp in range(50, 80, 1):
 		for ki in range(1, 20, 1):
 			for kd in range(30, 80, 1):
