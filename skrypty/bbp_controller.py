@@ -51,23 +51,15 @@ action_takeoff = None
 action_land = None
 action_move = None
 supervisor = None
-x_container = None
-y_container = None
-yaw_container = None
-
 
 PID_handler = None
 PID_error_locked = True
 RST_handler = None
-pos_flag_1 = 0 #3.0
-pos_flag_2 = 0 #1.2
-pos_flag_3 = 0 #3.0
-pos_flag_4 = 0
 
-target_pos = [0.0, 0.0, 0.0, 0.0] # x, y, z, yaw
-target_pos_norm = [0.0, 0.0, 0.0, 0.0] # x, y, z, yaw
-base_pos = [0.0, 0.0, 0.0, 0.0] # x, y, z, yaw
-current_pos = [0.0, 0.0, 0.0, 0.0] # x, y, z, yaw
+target_pos = [0.0, 0.0, 0.0, 0.0]  # x, y, z, yaw
+target_pos_norm = [0.0, 0.0, 0.0, 0.0]  # x, y, z, yaw
+base_pos = [0.0, 0.0, 0.0, 0.0]  # x, y, z, yaw
+current_pos = [0.0, 0.0, 0.0, 0.0]  # x, y, z, yaw
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
@@ -104,18 +96,17 @@ def odom_callback(data):
 
 	yaw_container = yaw_val
 
-
 	if PID_error_locked == False:
 		PID_handler.insert_error_value_pair('X', target_pos[0], current_pos[0])
 		PID_handler.insert_error_value_pair('Y', target_pos[1], current_pos[1])
 		PID_handler.insert_error_value_pair('Z', target_pos[2], current_pos[2])
 		PID_handler.insert_error_value_pair('YAW', target_pos[3], current_pos[3])
 
-# X
-def tracking_callback(data):
+
+def tracking_callback(data):  # X
 
 	trajectory = []
-	with open(os.path.join(__location__, "przebiegqwe.csv")) as csv_file:
+	with open(os.path.join(__location__, "trajectory.csv")) as csv_file:
 		csv_reader = csv.reader(csv_file)
 		for line in csv_reader:
 			tmp = float(line[0])
@@ -123,102 +114,6 @@ def tracking_callback(data):
 
 	rospy.loginfo('New task has been received!')
 
-	rate_z_test = rospy.Rate(150)
-	empty_msg = Empty()
-	twist_msg = Twist()
-
-	twist_msg.linear.x = 0
-	twist_msg.linear.y = 0
-	twist_msg.linear.z = 0
-	twist_msg.angular.x = 0
-	twist_msg.angular.y = 0
-	twist_msg.angular.z = 0
-
-	global RST_handler
-	RST_handler = ReferenceSystemTransformer()
-
-	rospy.loginfo('Bebop Take Off #1')
-	action_takeoff.publish(empty_msg)
-	global drones_state
-	while not(drones_state == DronesState.HOVERING.value):
-		continue
-
-	global base_pos
-	global target_pos
-	global current_pos
-	global PID_error_locked
-	global x_container
-	global y_container
-	global yaw_container
-	global target_pos_norm
-
-	target_pos[0] = 0
-	target_pos[1] = 0
-	target_pos[2] = 0
-	target_pos[3] = 0
-
-	# tests_file_h = open(os.path.join(__location__, "tests.csv"), "w")
-	result_file_h = open(os.path.join(__location__, "results.csv"), "w")
-	iteration = 0
-	for kp in range(60, 81, 1):
-		for ki in range(1, 21, 1):
-			for kd in range(30, 61, 1):
-				n_kp = ((kp * 1.0) / 100)
-				n_ki = ((ki * 1.0) / 10000)
-				n_kd = kd
-
-				pid_trigger = 0.05
-				PID_error_locked = True
-
-				global PID_handler
-				PID_handler = UavPID([n_kp, 0, 0, 0], [n_ki, 0, 0, 0], [n_kd, 0, 0, 0])
-
-				PID_error_locked = False
-
-				rospy.loginfo('Bebop Move [#X] [' + str(iteration) + ']')
-
-				diff_data = []
-				J = 0.0
-
-				for point in trajectory:
-					target_pos[0] = point
-					PID_handler.reset_errors_list()
-					PID_result = 1.0
-					loop_cond = 0
-					while (abs(PID_result) > pid_trigger) or (loop_cond < 180):
-
-						PID_result = PID_handler.calculate('X')
-						diff_data.append(abs(target_pos[0] - current_pos[0]))
-						twist_msg.linear.x = PID_result
-						action_move.publish(twist_msg)
-						rate_z_test.sleep()
-						loop_cond += 1
-
-				for d in diff_data:
-					J += d
-
-				iteration += 1
-
-				rospy.loginfo('Kp = ' + str(n_kp) + '\t' + 'Ki = ' + str(n_ki) + '\t' + 'Kd = ' + str(n_kd) + '\t' + 'J = ' + str(J) + '\n')
-				result_file_h.write(str(n_kp) + '\t' + str(n_ki) + '\t' + str(n_kd) + '\t' + str(J) + '\n')
-				result_file_h.flush()
-
-	result_file_h.close()
-	rospy.sleep(5)
-
-	rospy.loginfo('Bebop Land #1')
-	action_land.publish(empty_msg)
-
-	while not(drones_state == DronesState.LANDED.value):
-		continue
-
-	rospy.loginfo('Done!')
-
-# YAW
-def dbg_callback(data):
-	rospy.loginfo('New task has been received!')
-
-	rate_z_test = rospy.Rate(90)
 	empty_msg = Empty()
 	twist_msg = Twist()
 
@@ -242,9 +137,6 @@ def dbg_callback(data):
 	global target_pos
 	global current_pos
 	global PID_error_locked
-	global x_container
-	global y_container
-	global yaw_container
 	global target_pos_norm
 
 	target_pos[0] = 0
@@ -252,135 +144,64 @@ def dbg_callback(data):
 	target_pos[2] = 0
 	target_pos[3] = 0
 
-	tests_file_h = open(os.path.join(__location__, "tests.csv"), "w")
+	rate_x_test = rospy.Rate(150)
 	result_file_h = open(os.path.join(__location__, "results.csv"), "w")
-	diff_file_h = open(os.path.join(__location__, "diffs.csv"), "w")
-	# 1 stopien -> 0.017453 radiana
-	# one_deg = 0.017453
+	iteration = 1
 
-	for kp in range(60, 80, 1):
-		for ki in range(10, 20, 1):
-			for kd in range(40, 80, 1):
-				n_kp = 1.0  # ((kp * 1.0) / 100)
-				n_ki = 0.0002  #((ki * 1.0) / 10000)
-				n_kd = 10.0  #kd
+	for kp in range(60, 81, 1):
+		for ki in range(1, 21, 1):
+			for kd in range(30, 61, 1):
+				n_kp = ((kp * 1.0) / 100)
+				n_ki = ((ki * 1.0) / 10000)
+				n_kd = kd
 
-				pid_trigger = 0.008
 				PID_error_locked = True
-
 				global PID_handler
-				PID_handler = UavPID([0, 0, 0, n_kp], [0, 0, 0, n_ki], [0, 0, 0, n_kd])
-
+				PID_handler = UavPID([n_kp, 0, 0, 0], [n_ki, 0, 0, 0], [n_kd, 0, 0, 0])
 				PID_error_locked = False
 
-				target_pos[3] = 2.0 # yaw
-				PID_handler.reset_errors_list()
+				rospy.loginfo('Bebop Move [#X] [' + str(iteration) + ']')
 
-				rospy.loginfo('Bebop Move [#YAW] (forward)')
-
-				PID_result = 1.0
-				loop_cond = 0
-				diff_data = []
+				pid_trigger = 0.05
+				J_data = []
 				J = 0.0
+				D_data = []
+				D = 0.0
 
-				while (abs(PID_result) > pid_trigger) or (loop_cond < 180):
+				for point in trajectory:
+					target_pos[0] = point
+					PID_handler.reset_errors_list()
+					PID_result = 1.0
+					loop_cond = 0
 
-					PID_result = PID_handler.calculate('YAW')
+					while (abs(PID_result) > pid_trigger) or (loop_cond < 180):
 
-					diff_data.append(abs(target_pos[3] - current_pos[3]))
+						PID_result = PID_handler.calculate('X')
+						J_data.append(abs(target_pos[0] - current_pos[0]))
+						twist_msg.linear.x = PID_result
+						action_move.publish(twist_msg)
+						rate_x_test.sleep()
+						loop_cond += 1
+					if target_pos[0] == 1.5 or target_pos[0] == -1.5 or target_pos[0] == 1 or target_pos[0] == -1:
+						D_data.append(abs(target_pos[0] - current_pos[0]))
+						rospy.loginfo(str(target_pos[0]) + '\t' + str(current_pos[0]) + '\t' + str(abs(target_pos[0] - current_pos[0])) + '\n')
 
-					twist_msg.angular.z = PID_result
+				for j in J_data:
+					J += j
 
-					action_move.publish(twist_msg)
-					#supervisor.publish(PID_result)
-					rate_z_test.sleep()
-					loop_cond += 1
+				for d in D_data:
+					D += d
 
-				#rospy.loginfo('tgp: ' + str(target_pos[0]) + ' x-val: ' + str(x_container) + ' curr-pos: ' + str(current_pos[0]) + ' yaw_val: ' + str(yaw_container))
-				#tests_file_h.write(str(target_pos[0]) + '\t' + str(x_container) + '\t' + str(current_pos[0]) + '\t')
-				#diff_file_h.write(str(target_pos[0]) + '\t' + str(current_pos[0]) + '\t' + str(x_container) + '\t' + str(y_container) + '\t' + str(yaw_container) + '\n')
+				iteration += 1
 
-				target_pos[3] = -2.5  # YAW
-				PID_handler.reset_errors_list()
-				rospy.loginfo('Bebop Move [#YAW] (backward)')
-				#print("ddddd")
-				PID_result = 1.0
-				loop_cond = 0
-				while (abs(PID_result) > pid_trigger) or (loop_cond < 180):
-					PID_result = PID_handler.calculate('YAW')
-					diff_data.append(abs(target_pos[3] - current_pos[3]))
-					twist_msg.angular.z = PID_result
-					#print("ffff")
-					action_move.publish(twist_msg)
-					rate_z_test.sleep()
-
-					loop_cond += 1
-
-				#rospy.loginfo('tgp: ' + str(target_pos[0]) + ' x-val: ' + str(x_container) + ' curr-pos: ' + str(current_pos[0]) + ' yaw_val: ' + str(yaw_container))
-				#tests_file_h.write(str(target_pos[0]) + '\t' + str(x_container) + '\t' + str(current_pos[0]) + '\t')
-				#diff_file_h.write(str(target_pos[0]) + '\t' + str(current_pos[0]) + '\t' + str(x_container) + '\t' + str(y_container) + '\t' + str(yaw_container) + '\n')
-
-				target_pos[3] = 3.0  # YAW
-				PID_handler.reset_errors_list()
-				rospy.loginfo('Bebop Move [#YAW] (forward)')
-
-				PID_result = 1.0
-				loop_cond = 0
-
-				while (abs(PID_result) > pid_trigger) or (loop_cond < 180):
-					PID_result = PID_handler.calculate('YAW')
-
-					diff_data.append(abs(target_pos[3] - current_pos[3]))
-
-					twist_msg.angular.z = PID_result
-
-					action_move.publish(twist_msg)
-					# supervisor.publish(PID_result)
-					rate_z_test.sleep()
-
-					loop_cond += 1
-
-				#rospy.loginfo('tgp: ' + str(target_pos[0]) + ' x-val: ' + str(x_container) + ' curr-pos: ' + str(current_pos[0]) + ' yaw_val: ' + str(yaw_container))
-				#tests_file_h.write(str(target_pos[0]) + '\t' + str(x_container) + '\t' + str(current_pos[0]) + '\t')
-				#diff_file_h.write(str(target_pos[0]) + '\t' + str(current_pos[0]) + '\t' + str(x_container) + '\t' + str(y_container) + '\t' + str(yaw_container) + '\n')
-
-				target_pos[3] = 0.0  # YAW
-				PID_handler.reset_errors_list()
-				rospy.loginfo('Bebop Move [#YAW] (backward)')
-
-				PID_result = 1.0
-				loop_cond = 0
-
-				while (abs(PID_result) > pid_trigger) or (loop_cond < 180):
-					PID_result = PID_handler.calculate('YAW')
-
-					diff_data.append(abs(target_pos[3] - current_pos[3]))
-
-					twist_msg.angular.z = PID_result
-
-					action_move.publish(twist_msg)
-					# supervisor.publish(PID_result)
-					rate_z_test.sleep()
-
-					loop_cond += 1
-
-				for d in diff_data:
-					J += d
-
-				#rospy.loginfo('tgp: ' + str(target_pos[0]) + ' x-val: ' + str(x_container) + ' curr-pos: ' + str(current_pos[0]) + ' yaw_val: ' + str(yaw_container) + '\n')
-				#tests_file_h.write(str(target_pos[0]) + '\t' + str(x_container) + '\t' + str(current_pos[0]) + '\t' + str(J) + '\n')
-				#diff_file_h.write(str(target_pos[0]) + '\t' + str(current_pos[0]) + '\t' + str(x_container) + '\t' + str(y_container) + '\t' + str(yaw_container) + '\n')
-
-				rospy.loginfo('Kp = ' + str(n_kp) + '\t' + 'Ki = ' + str(n_ki) + '\t' + 'Kd = ' + str(n_kd) + '\t' + 'J = ' + str(J) + '\n')
-				result_file_h.write(str(n_kp) + '\t' + str(n_ki) + '\t' + str(n_kd) + '\t' + str(J) + '\n')
+				rospy.loginfo('Kp = ' + str(n_kp) + '\t' + 'Ki = ' + str(n_ki) + '\t' + 'Kd = ' + str(n_kd) + '\n' + 'J = ' + str(J) + '\t' + 'D = ' + str(D) + '\n')
+				result_file_h.write(str(n_kp) + '\t' + str(n_ki) + '\t' + str(n_kd) + '\t' + str(J) + '\t' + str(D) + '\n')
 				result_file_h.flush()
 
-	#tests_file_h.close()
 	result_file_h.close()
-	#diff_file_h.close()
 	rospy.sleep(5)
 
-	rospy.loginfo('Bebop Land #1')
+	rospy.loginfo('Bebop Land')
 	action_land.publish(empty_msg)
 
 	while not(drones_state == DronesState.LANDED.value):
@@ -388,8 +209,151 @@ def dbg_callback(data):
 
 	rospy.loginfo('Done!')
 
-# Z
-def performance_callback(data):
+
+def dbg_callback(data):  # YAW
+	rospy.loginfo('New task has been received!')
+
+	empty_msg = Empty()
+	twist_msg = Twist()
+
+	twist_msg.linear.x = 0
+	twist_msg.linear.y = 0
+	twist_msg.linear.z = 0
+	twist_msg.angular.x = 0
+	twist_msg.angular.y = 0
+	twist_msg.angular.z = 0
+
+	global RST_handler
+	RST_handler = ReferenceSystemTransformer()
+
+	rospy.loginfo('Bebop Take Off')
+	action_takeoff.publish(empty_msg)
+	global drones_state
+	while not(drones_state == DronesState.HOVERING.value):
+		continue
+
+	global base_pos
+	global target_pos
+	global current_pos
+	global PID_error_locked
+	global target_pos_norm
+
+	target_pos[0] = 0
+	target_pos[1] = 0
+	target_pos[2] = 0
+	target_pos[3] = 0
+
+	rate_yaw_test = rospy.Rate(90)
+	result_file_h = open(os.path.join(__location__, "results.csv"), "w")
+	iteration = 1
+
+	for kp in range(60, 80, 1):
+		for ki in range(10, 20, 1):
+			for kd in range(40, 80, 1):
+				n_kp = 1.0     # ((kp * 1.0) / 100)
+				n_ki = 0.0002  # ((ki * 1.0) / 10000)
+				n_kd = 10.0    # kd
+
+				PID_error_locked = True
+				global PID_handler
+				PID_handler = UavPID([0, 0, 0, n_kp], [0, 0, 0, n_ki], [0, 0, 0, n_kd])
+				PID_error_locked = False
+
+				pid_trigger = 0.008
+				J_data = []
+				J = 0.0
+				D_data = []
+				D = 0.0
+
+				target_pos[3] = 2.0  # yaw
+				PID_handler.reset_errors_list()
+				rospy.loginfo('Bebop Move [#YAW]')
+				PID_result = 1.0
+				loop_cond = 0
+
+				while (abs(PID_result) > pid_trigger) or (loop_cond < 180):
+
+					PID_result = PID_handler.calculate('YAW')
+					J_data.append(abs(target_pos[3] - current_pos[3]))
+					twist_msg.angular.z = PID_result
+					action_move.publish(twist_msg)
+					rate_yaw_test.sleep()
+					loop_cond += 1
+				D_data.append(abs(target_pos[3] - current_pos[3]))
+
+				target_pos[3] = -2.5
+				PID_handler.reset_errors_list()
+				rospy.loginfo('Bebop Move [#YAW]')
+				PID_result = 1.0
+				loop_cond = 0
+
+				while (abs(PID_result) > pid_trigger) or (loop_cond < 180):
+
+					PID_result = PID_handler.calculate('YAW')
+					J_data.append(abs(target_pos[3] - current_pos[3]))
+					twist_msg.angular.z = PID_result
+					action_move.publish(twist_msg)
+					rate_yaw_test.sleep()
+					loop_cond += 1
+				D_data.append(abs(target_pos[3] - current_pos[3]))
+
+				target_pos[3] = 3.0
+				PID_handler.reset_errors_list()
+				rospy.loginfo('Bebop Move [#YAW]')
+				PID_result = 1.0
+				loop_cond = 0
+
+				while (abs(PID_result) > pid_trigger) or (loop_cond < 180):
+
+					PID_result = PID_handler.calculate('YAW')
+					J_data.append(abs(target_pos[3] - current_pos[3]))
+					twist_msg.angular.z = PID_result
+					action_move.publish(twist_msg)
+					rate_yaw_test.sleep()
+					loop_cond += 1
+				D_data.append(abs(target_pos[3] - current_pos[3]))
+
+				target_pos[3] = 0.0
+				PID_handler.reset_errors_list()
+				rospy.loginfo('Bebop Move [#YAW] (backward)')
+				PID_result = 1.0
+				loop_cond = 0
+
+				while (abs(PID_result) > pid_trigger) or (loop_cond < 180):
+
+					PID_result = PID_handler.calculate('YAW')
+					J_data.append(abs(target_pos[3] - current_pos[3]))
+					twist_msg.angular.z = PID_result
+					action_move.publish(twist_msg)
+					rate_yaw_test.sleep()
+					loop_cond += 1
+				D_data.append(abs(target_pos[3] - current_pos[3]))
+
+				for j in J_data:
+					J += j
+
+				for d in D_data:
+					D += d
+
+				iteration += 1
+
+				rospy.loginfo('Kp = ' + str(n_kp) + '\t' + 'Ki = ' + str(n_ki) + '\t' + 'Kd = ' + str(n_kd) + '\n' + 'J = ' + str(J) + '\t' + 'D = ' + str(D) + '\n')
+				result_file_h.write(str(n_kp) + '\t' + str(n_ki) + '\t' + str(n_kd) + '\t' + str(J) + '\t' + str(D) + '\n')
+				result_file_h.flush()
+
+	result_file_h.close()
+	rospy.sleep(5)
+
+	rospy.loginfo('Bebop Land')
+	action_land.publish(empty_msg)
+
+	while not(drones_state == DronesState.LANDED.value):
+		continue
+
+	rospy.loginfo('Done!')
+
+
+def performance_callback(data):  # Z
 	rospy.loginfo('starting performance tests!')
 
 	rate_z_test = rospy.Rate(90)
