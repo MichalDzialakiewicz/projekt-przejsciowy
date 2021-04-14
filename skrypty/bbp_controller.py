@@ -148,9 +148,9 @@ def tracking_callback(data):  # X
 	result_file_h = open(os.path.join(__location__, "results.csv"), "w")
 	iteration = 1
 
-	for kp in range(60, 81, 1):
+	for kp in range(60, 80, 1):
 		for ki in range(1, 21, 1):
-			for kd in range(30, 61, 1):
+			for kd in range(30, 60, 1):
 				n_kp = ((kp * 1.0) / 100)
 				n_ki = ((ki * 1.0) / 10000)
 				n_kd = kd
@@ -184,7 +184,6 @@ def tracking_callback(data):  # X
 						loop_cond += 1
 					if target_pos[0] == 1.5 or target_pos[0] == -1.5 or target_pos[0] == 1 or target_pos[0] == -1:
 						D_data.append(abs(target_pos[0] - current_pos[0]))
-						rospy.loginfo(str(target_pos[0]) + '\t' + str(current_pos[0]) + '\t' + str(abs(target_pos[0] - current_pos[0])) + '\n')
 
 				for j in J_data:
 					J += j
